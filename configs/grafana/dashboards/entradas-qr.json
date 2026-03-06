@@ -1,0 +1,120 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "entradas-qr",
+    "title": "Entradas QR - Overview",
+    "tags": ["entradas-qr"],
+    "timezone": "browser",
+    "refresh": "10s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "HTTP Requests/sec by Endpoint",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "rate(http_requests_total[1m])",
+            "legendFormat": "{{job}} {{method}} {{path}}"
+          }
+        ],
+        "datasource": {"type": "prometheus", "uid": "prometheus"}
+      },
+      {
+        "id": 2,
+        "title": "HTTP Request Duration (p95)",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "{{job}} {{method}} {{path}}"
+          }
+        ],
+        "datasource": {"type": "prometheus", "uid": "prometheus"}
+      },
+      {
+        "id": 3,
+        "title": "Tickets Purchased",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 8},
+        "targets": [
+          {
+            "expr": "tickets_purchased_total",
+            "legendFormat": "total"
+          }
+        ],
+        "datasource": {"type": "prometheus", "uid": "prometheus"}
+      },
+      {
+        "id": 4,
+        "title": "Events Created",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 8},
+        "targets": [
+          {
+            "expr": "events_created_total",
+            "legendFormat": "total"
+          }
+        ],
+        "datasource": {"type": "prometheus", "uid": "prometheus"}
+      },
+      {
+        "id": 5,
+        "title": "Ticket Validations",
+        "type": "piechart",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+        "targets": [
+          {
+            "expr": "tickets_validated_total",
+            "legendFormat": "{{result}}"
+          }
+        ],
+        "datasource": {"type": "prometheus", "uid": "prometheus"}
+      },
+      {
+        "id": 6,
+        "title": "RabbitMQ Events Published",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+        "targets": [
+          {
+            "expr": "rate(rabbitmq_events_published_total[1m])",
+            "legendFormat": "{{routing_key}}"
+          }
+        ],
+        "datasource": {"type": "prometheus", "uid": "prometheus"}
+      },
+      {
+        "id": 7,
+        "title": "RabbitMQ Events Consumed",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+        "targets": [
+          {
+            "expr": "rate(rabbitmq_events_consumed_total[1m])",
+            "legendFormat": "{{queue}} {{status}}"
+          }
+        ],
+        "datasource": {"type": "prometheus", "uid": "prometheus"}
+      },
+      {
+        "id": 8,
+        "title": "Application Logs",
+        "type": "logs",
+        "gridPos": {"h": 10, "w": 24, "x": 0, "y": 20},
+        "targets": [
+          {
+            "expr": "{job=~\"ticket-api|validator-api\"}",
+            "refId": "A"
+          }
+        ],
+        "datasource": {"type": "loki", "uid": "loki"}
+      }
+    ]
+  }
+}

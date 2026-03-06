@@ -1,0 +1,140 @@
+openapi: 3.0.3
+info:
+  title: Validator API - Entradas QR
+  description: |
+    Service for validating HMAC-signed QR tokens at event venues.
+    Uses a three-tier validation pattern: HMAC signature verification, Redis lookup (fast path),
+    then HTTP fallback to the Ticket API if not found in Redis.
+
+    **Security:** IP-based rate limiting (token bucket) protects the validation endpoint against brute-force attacks.
+
+    **Reconciliation:** On successful validation, a `ticket.used` event is published to RabbitMQ so the
+    Ticket Service can reconcile the ticket status in its own database.
+  version: 2.0.0
+
+servers:
+  - url: http://localhost:8081
+    description: Local development
+
+paths:
+  /validate:
+    post:
+      summary: Validate a ticket QR code
+      description: |
+        Validates an HMAC-signed token scanned from a QR at the venue entrance.
+
+        **Validation Flow:**
+        1. Verifies the HMAC-SHA256 signature to extract the ticket code
+        2. Checks Redis for the ticket (fast path, O(1) lookup)
+        3. If not found in Redis, queries the Ticket API via POST /tickets/lookup as a live fallback
+        4. If valid via fallback, syncs the ticket to Redis and marks it as used
+
+        **Possible results:**
+        - `valid: true` → Ticket is valid, entry allowed, ticket marked as used
+        - `valid: false` → Ticket is invalid, already used, cancelled, or not found
+      operationId: validateTicket
+      tags:
+        - Validation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ValidateRequest'
+            example:
+              ticket_code: "550e8400-e29b-41d4-a716-446655440000.a1b2c3d4e5f6"
+      responses:
+        '200':
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidateResponse'
+              examples:
+                valid_ticket:
+                  summary: Valid ticket
+                  value:
+                    valid: true
+                    message: "ticket validated successfully"
+                already_used:
+                  summary: Already used ticket
+                  value:
+                    valid: false
+                    message: "ticket is used"
+                cancelled_ticket:
+                  summary: Cancelled ticket
+                  value:
+                    valid: false
+                    message: "ticket is cancelled"
+                tampered_token:
+                  summary: Tampered or forged QR token
+                  value:
+                    valid: false
+                    message: "invalid or tampered QR token"
+                not_found:
+                  summary: Ticket not found
+                  value:
+                    valid: false
+                    message: "ticket not found"
+                fallback_validated:
+                  summary: Validated via live fallback
+                  value:
+                    valid: true
+                    message: "ticket validated via live check"
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          headers:
+            Retry-After:
+              schema:
+                type: string
+              description: Seconds to wait before retrying
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "rate limit exceeded, try again later"
+        '409':
+          description: Business rule violation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    ValidateRequest:
+      type: object
+      required: [ticket_code]
+      properties:
+        ticket_code:
+          type: string
+          description: HMAC-signed token from the scanned QR (format code.signature)
+
+    ValidateResponse:
+      type: object
+      properties:
+        valid:
+          type: boolean
+          description: Whether the ticket is valid for entry
+        message:
+          type: string
+          description: Human-readable validation result
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string

@@ -1,0 +1,280 @@
+{
+	"info": {
+		"_postman_id": "entradas-qr-collection",
+		"name": "Entradas QR",
+		"description": "Complete collection for testing the Entradas QR ticket sales and validation system.\n\n## Services\n- **Ticket API** (localhost:8080): Event creation, ticket purchasing\n- **QR Worker**: Async QR generation and email delivery (consumes purchase.completed events from RabbitMQ)\n- **Validator API** (localhost:8081): QR code validation at venue\n\n## Prerequisites\nAll three services must be running: `make run-ticket`, `make run-validator`, `make run-qr-worker`.\nCheck MailHog at http://localhost:8025 to see ticket emails sent by the QR Worker.\n\n## Test Flow\n1. Create an event\n2. Purchase tickets (triggers async QR generation + email via QR Worker)\n3. Check MailHog at http://localhost:8025 for the confirmation email\n4. Copy the HMAC-signed token from the QR code in the email and set the `signed_ticket_code` collection variable\n5. Validate a ticket QR code using the signed token\n6. Try validating the same ticket again (should fail - already used)\n7. Cancel a ticket\n8. Try validating a cancelled ticket (should fail)\n\n## Important: signed_ticket_code\nThe Validator API expects HMAC-signed tokens (format: `uuid.hmac_signature`), NOT raw UUID codes.\nThe QR Worker signs each ticket code and embeds the signed token in the QR image sent via email.\nAfter step 3, decode the QR image from the email to get the signed token and set `signed_ticket_code`.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "ticket_api_url",
+			"value": "http://localhost:8080"
+		},
+		{
+			"key": "validator_api_url",
+			"value": "http://localhost:8081"
+		},
+		{
+			"key": "event_id",
+			"value": "1"
+		},
+		{
+			"key": "ticket_code",
+			"value": ""
+		},
+		{
+			"key": "ticket_id",
+			"value": ""
+		},
+		{
+			"key": "signed_ticket_code",
+			"value": "",
+			"description": "HMAC-signed token from QR code in email (format: uuid.signature). Set manually after checking MailHog."
+		}
+	],
+	"item": [
+		{
+			"name": "Ticket API",
+			"item": [
+				{
+					"name": "1. Create Event",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('event_id', jsonData.id);",
+									"    pm.test('Event created', function () {",
+									"        pm.expect(jsonData.name).to.eql('Rock Concert');",
+									"        pm.expect(jsonData.capacity).to.eql(1000);",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Rock Concert\",\n    \"location\": \"Stadium\",\n    \"date\": \"2026-06-15T20:00:00Z\",\n    \"capacity\": 1000,\n    \"ticket_price\": 150.00\n}"
+						},
+						"url": {
+							"raw": "{{ticket_api_url}}/events",
+							"host": ["{{ticket_api_url}}"],
+							"path": ["events"]
+						}
+					}
+				},
+				{
+					"name": "2. Purchase Tickets",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('ticket_code', jsonData.tickets[0].code);",
+									"    pm.collectionVariables.set('ticket_id', jsonData.tickets[0].id);",
+									"    pm.test('Purchase created with tickets', function () {",
+									"        pm.expect(jsonData.tickets.length).to.eql(2);",
+									"        pm.expect(jsonData.tickets[0].status).to.eql('emitted');",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"buyer_email\": \"user@example.com\",\n    \"event_id\": {{event_id}},\n    \"quantity\": 2\n}"
+						},
+						"url": {
+							"raw": "{{ticket_api_url}}/purchases",
+							"host": ["{{ticket_api_url}}"],
+							"path": ["purchases"]
+						}
+					}
+				},
+				{
+					"name": "3. Lookup Ticket by Code",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"code\": \"{{ticket_code}}\"\n}"
+						},
+						"url": {
+							"raw": "{{ticket_api_url}}/tickets/lookup",
+							"host": ["{{ticket_api_url}}"],
+							"path": ["tickets", "lookup"]
+						}
+					}
+				},
+				{
+					"name": "4. Cancel Ticket",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"id\": {{ticket_id}}\n}"
+						},
+						"url": {
+							"raw": "{{ticket_api_url}}/tickets/cancel",
+							"host": ["{{ticket_api_url}}"],
+							"path": ["tickets", "cancel"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Validator API",
+			"item": [
+				{
+					"name": "5. Validate Ticket (should pass) — requires signed_ticket_code from email QR",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.test('Ticket is valid', function () {",
+									"        pm.expect(jsonData.valid).to.eql(true);",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"ticket_code\": \"{{signed_ticket_code}}\"\n}"
+						},
+						"url": {
+							"raw": "{{validator_api_url}}/validate",
+							"host": ["{{validator_api_url}}"],
+							"path": ["validate"]
+						}
+					}
+				},
+				{
+					"name": "6. Validate Same Ticket Again (should fail - already used)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.test('Ticket is already used', function () {",
+									"        pm.expect(jsonData.valid).to.eql(false);",
+									"        pm.expect(jsonData.message).to.include('used');",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"ticket_code\": \"{{signed_ticket_code}}\"\n}"
+						},
+						"url": {
+							"raw": "{{validator_api_url}}/validate",
+							"host": ["{{validator_api_url}}"],
+							"path": ["validate"]
+						}
+					}
+				},
+				{
+					"name": "7. Validate Non-existent Ticket (should fail)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.test('Ticket not found', function () {",
+									"        pm.expect(jsonData.valid).to.eql(false);",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"ticket_code\": \"00000000-0000-0000-0000-000000000000\"\n}"
+						},
+						"url": {
+							"raw": "{{validator_api_url}}/validate",
+							"host": ["{{validator_api_url}}"],
+							"path": ["validate"]
+						}
+					}
+				}
+			]
+		}
+	]
+}

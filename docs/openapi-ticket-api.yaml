@@ -1,0 +1,309 @@
+openapi: 3.0.3
+info:
+  title: Ticket API - Entradas QR
+  description: |
+    Service for event creation and ticket purchasing.
+    QR code generation and email delivery are handled asynchronously by the QR Worker
+    via a purchase.completed event published to RabbitMQ.
+  version: 2.0.0
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+
+paths:
+  /events:
+    post:
+      summary: Create a new event
+      operationId: createEvent
+      tags:
+        - Events
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEventRequest'
+            example:
+              name: "Rock Concert"
+              location: "Stadium"
+              date: "2026-06-15T20:00:00Z"
+              capacity: 1000
+              ticket_price: 150.00
+      responses:
+        '201':
+          description: Event created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /purchases:
+    post:
+      summary: Purchase tickets for an event
+      description: |
+        Creates a purchase with the specified number of tickets.
+        Each ticket gets a unique UUID code used for QR generation.
+
+        **Side Effects (via RabbitMQ):**
+        - Publishes `ticket.created` events (one per ticket) for the Validator service.
+        - Publishes a `purchase.completed` event consumed by the QR Worker,
+          which generates QR codes and sends a confirmation email to the buyer.
+      operationId: createPurchase
+      tags:
+        - Purchases
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePurchaseRequest'
+            example:
+              buyer_email: "user@example.com"
+              event_id: 1
+              quantity: 2
+      responses:
+        '201':
+          description: Purchase completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Business rule violation (e.g., not enough tickets)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /tickets/lookup:
+    post:
+      summary: Lookup ticket by code
+      description: |
+        Returns ticket information given its unique UUID code (sent in the request body).
+        Used by the validator service as a live fallback via POST for security
+        (ticket codes are not exposed in URLs).
+      operationId: lookupTicket
+      tags:
+        - Tickets
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LookupTicketRequest'
+            example:
+              code: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        '200':
+          description: Ticket found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketResponse'
+        '400':
+          description: Missing or empty code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Ticket not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /tickets/cancel:
+    post:
+      summary: Cancel a ticket
+      description: |
+        Cancels a ticket by ID (sent in the request body). Publishes a ticket.cancelled
+        event to RabbitMQ so the validator service updates it in Redis.
+      operationId: cancelTicket
+      tags:
+        - Tickets
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelTicketRequest'
+            example:
+              id: 1
+      responses:
+        '204':
+          description: Ticket cancelled successfully
+        '400':
+          description: Invalid or missing ticket ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Ticket not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Business rule violation (e.g., ticket already used)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    CreateEventRequest:
+      type: object
+      required: [name, location, date, capacity, ticket_price]
+      properties:
+        name:
+          type: string
+          description: Event name
+        location:
+          type: string
+          description: Venue or location
+        date:
+          type: string
+          format: date-time
+          description: Event date in RFC3339 format
+        capacity:
+          type: integer
+          minimum: 1
+          description: Total number of tickets available
+        ticket_price:
+          type: number
+          format: double
+          minimum: 0.01
+          description: Price per ticket
+
+    EventResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Database-generated auto-increment ID
+        name:
+          type: string
+        location:
+          type: string
+        date:
+          type: string
+          format: date-time
+        capacity:
+          type: integer
+        ticket_price:
+          type: number
+          format: double
+
+    CreatePurchaseRequest:
+      type: object
+      required: [buyer_email, event_id, quantity]
+      properties:
+        buyer_email:
+          type: string
+          format: email
+          description: Buyer's email address for ticket delivery
+        event_id:
+          type: integer
+          description: ID of the event to purchase tickets for
+        quantity:
+          type: integer
+          minimum: 1
+          description: Number of tickets to purchase
+
+    PurchaseResponse:
+      type: object
+      properties:
+        purchase_id:
+          type: integer
+        event_name:
+          type: string
+        tickets:
+          type: array
+          items:
+            $ref: '#/components/schemas/TicketResponse'
+        total_price:
+          type: number
+          format: double
+
+    LookupTicketRequest:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: string
+          format: uuid
+          description: Ticket UUID code
+
+    CancelTicketRequest:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: integer
+          minimum: 1
+          description: Ticket ID to cancel
+
+    TicketResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        code:
+          type: string
+          format: uuid
+          description: Unique QR code identifier
+        status:
+          type: string
+          enum: [emitted, used, cancelled]
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string

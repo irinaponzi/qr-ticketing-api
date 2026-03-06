@@ -1,0 +1,9 @@
+bin/
+*.exe
+.DS_Store
+.idea
+coverage.out
+spec.md
+plan.md
+spec-template.md
+.env
