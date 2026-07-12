@@ -56,22 +56,13 @@ func TestNewEvent_ValidationErrors(t *testing.T) {
 		wantErr  string
 	}{
 		{
-			name:     "zero ID",
-			id:       0,
-			evName:   "Concert",
-			location: "Stadium",
-			date:     validDate,
-			capacity: 100,
-			wantErr:  "event ID must be positive",
-		},
-		{
 			name:     "negative ID",
 			id:       -1,
 			evName:   "Concert",
 			location: "Stadium",
 			date:     validDate,
 			capacity: 100,
-			wantErr:  "event ID must be positive",
+			wantErr:  "event ID cannot be negative",
 		},
 		{
 			name:     "empty name",
@@ -272,8 +263,8 @@ func TestEvent_UpdateName(t *testing.T) {
 func TestEvent_SetID(t *testing.T) {
 	event := newTestEvent(t, 100)
 
-	if event.ID() != 1 {
-		t.Fatalf("expected initial ID 1, got %d", event.ID())
+	if event.ID() != 0 {
+		t.Fatalf("expected initial ID 0, got %d", event.ID())
 	}
 
 	event.SetID(42)
@@ -288,7 +279,7 @@ func newTestEvent(t *testing.T, capacity int) *Event {
 
 	date := time.Date(2026, 6, 15, 20, 0, 0, 0, time.UTC)
 
-	event, err := NewEvent(1, "Test Event", "Test Venue", date, capacity, 100.0)
+	event, err := NewEvent(0, "Test Event", "Test Venue", date, capacity, 100.0)
 	if err != nil {
 		t.Fatalf("failed to create test event: %v", err)
 	}

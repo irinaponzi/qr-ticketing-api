@@ -38,8 +38,8 @@ type eventAttributes struct {
 //   - *Event: A pointer to the newly created Event.
 //   - error: An error if any invariant is violated; otherwise, nil.
 func NewEvent(id int, name, location string, date time.Time, capacity int, ticketPrice float64) (*Event, error) {
-	if id <= 0 {
-		return nil, errors.New("event ID must be positive")
+	if id < 0 {
+		return nil, errors.New("event ID cannot be negative")
 	}
 
 	if name == "" {

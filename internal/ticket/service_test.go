@@ -262,11 +262,11 @@ func TestTicketService_Purchase_EventRepoError(t *testing.T) {
 }
 
 func TestTicketService_CancelTicket_Success(t *testing.T) {
-	ticket := newTestTicket(t)
+	tk := newTestTicket(t)
 
 	ticketRepo := &mockTicketRepository{
-		getFunc: func(ctx context.Context, id int) (*Ticket, error) {
-			return ticket, nil
+		getByCodeFunc: func(ctx context.Context, code string) (*Ticket, error) {
+			return tk, nil
 		},
 	}
 
@@ -274,14 +274,14 @@ func TestTicketService_CancelTicket_Success(t *testing.T) {
 
 	svc := NewTicketService(nil, ticketRepo, nil, publisher)
 
-	err := svc.CancelTicket(context.Background(), 1)
+	err := svc.CancelTicket(context.Background(), tk.Code())
 
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if ticket.Status() != TicketStatusCancelled {
-		t.Errorf("expected status 'cancelled', got %q", ticket.Status())
+	if tk.Status() != TicketStatusCancelled {
+		t.Errorf("expected status 'cancelled', got %q", tk.Status())
 	}
 
 	if publisher.publishCancelledCalls != 1 {
@@ -291,14 +291,14 @@ func TestTicketService_CancelTicket_Success(t *testing.T) {
 
 func TestTicketService_CancelTicket_NotFound(t *testing.T) {
 	ticketRepo := &mockTicketRepository{
-		getFunc: func(ctx context.Context, id int) (*Ticket, error) {
+		getByCodeFunc: func(ctx context.Context, code string) (*Ticket, error) {
 			return nil, nil
 		},
 	}
 
 	svc := NewTicketService(nil, ticketRepo, nil, nil)
 
-	err := svc.CancelTicket(context.Background(), 999)
+	err := svc.CancelTicket(context.Background(), "nonexistent-code")
 
 	if err == nil {
 		t.Fatal("expected error, got nil")
@@ -310,18 +310,18 @@ func TestTicketService_CancelTicket_NotFound(t *testing.T) {
 }
 
 func TestTicketService_CancelTicket_AlreadyUsed(t *testing.T) {
-	ticket := newTestTicket(t)
-	_ = ticket.MarkAsUsed()
+	tk := newTestTicket(t)
+	_ = tk.MarkAsUsed()
 
 	ticketRepo := &mockTicketRepository{
-		getFunc: func(ctx context.Context, id int) (*Ticket, error) {
-			return ticket, nil
+		getByCodeFunc: func(ctx context.Context, code string) (*Ticket, error) {
+			return tk, nil
 		},
 	}
 
 	svc := NewTicketService(nil, ticketRepo, nil, nil)
 
-	err := svc.CancelTicket(context.Background(), 1)
+	err := svc.CancelTicket(context.Background(), tk.Code())
 
 	if err == nil {
 		t.Fatal("expected error, got nil")

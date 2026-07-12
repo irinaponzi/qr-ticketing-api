@@ -138,19 +138,19 @@ func (s *TicketService) Purchase(ctx context.Context, input PurchaseInput) (*Pur
 //
 // Parameters:
 //   - ctx: The request context for cancellation and tracing.
-//   - ticketID: The ID of the ticket to cancel.
+//   - code: The UUID code of the ticket to cancel.
 //
 // Returns:
 //   - error: ErrNotFound if the ticket doesn't exist, ErrBusinessRule if the
 //     ticket cannot be cancelled, or a wrapped infrastructure error.
-func (s *TicketService) CancelTicket(ctx context.Context, ticketID int) error {
-	t, err := s.ticketRepo.Get(ctx, ticketID)
+func (s *TicketService) CancelTicket(ctx context.Context, code string) error {
+	t, err := s.ticketRepo.GetByCode(ctx, code)
 	if err != nil {
 		return fmt.Errorf("getting ticket: %w", err)
 	}
 
 	if t == nil {
-		return fmt.Errorf("%w: ticket %d", ErrNotFound, ticketID)
+		return fmt.Errorf("%w: ticket with code %s", ErrNotFound, code)
 	}
 
 	if err := t.Cancel(); err != nil {
