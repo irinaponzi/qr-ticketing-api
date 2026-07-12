@@ -5,6 +5,7 @@ import "context"
 // EventRepository provides access to the collection of events.
 // Returns nil for not-found; errors only for infrastructure issues.
 type EventRepository interface {
+	List(ctx context.Context) ([]*Event, error)
 	Get(ctx context.Context, id int) (*Event, error)
 	Add(ctx context.Context, event *Event) error
 	Update(ctx context.Context, event *Event) error

@@ -9,6 +9,7 @@ import (
 )
 
 const (
+	queryListEvents  = `SELECT id, name, location, date, capacity, ticket_price, sold_count, created_at, updated_at FROM events ORDER BY date ASC`
 	queryGetEvent    = `SELECT id, name, location, date, capacity, ticket_price, sold_count, created_at, updated_at FROM events WHERE id = ?`
 	queryInsertEvent = `INSERT INTO events (name, location, date, capacity, ticket_price, sold_count, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
 	queryUpdateEvent = `UPDATE events SET name = ?, location = ?, date = ?, capacity = ?, ticket_price = ?, sold_count = ?, updated_at = ? WHERE id = ?`
@@ -22,6 +23,29 @@ type MySQLEventRepository struct {
 // NewMySQLEventRepository creates a new event repository backed by the given MySQL connection.
 func NewMySQLEventRepository(db *sql.DB) *MySQLEventRepository {
 	return &MySQLEventRepository{db: db}
+}
+
+// List retrieves all events ordered by date ascending.
+func (r *MySQLEventRepository) List(ctx context.Context) ([]*ticket.Event, error) {
+	rows, err := r.db.QueryContext(ctx, queryListEvents)
+	if err != nil {
+		return nil, fmt.Errorf("querying events: %w", err)
+	}
+	defer rows.Close()
+
+	var events []*ticket.Event
+	for rows.Next() {
+		var evt eventRow
+		if err := rows.Scan(&evt.ID, &evt.Name, &evt.Location, &evt.Date, &evt.Capacity, &evt.TicketPrice, &evt.SoldCount, &evt.CreatedAt, &evt.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("scanning event: %w", err)
+		}
+		events = append(events, ticket.NewEventFromRepository(evt.ID, evt.Name, evt.Location, evt.Date, evt.Capacity, evt.TicketPrice, evt.SoldCount, evt.CreatedAt, evt.UpdatedAt))
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating events: %w", err)
+	}
+
+	return events, nil
 }
 
 // Get retrieves an event by its ID. Returns nil if not found.

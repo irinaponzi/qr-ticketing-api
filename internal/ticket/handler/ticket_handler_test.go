@@ -12,15 +12,25 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/iponzi/entradasQR/internal/ticket"
 )
 
 // --- Mocks ---
 
 type mockEventRepo struct {
+	listFunc   func(ctx context.Context) ([]*ticket.Event, error)
 	getFunc    func(ctx context.Context, id int) (*ticket.Event, error)
 	addFunc    func(ctx context.Context, event *ticket.Event) error
 	updateFunc func(ctx context.Context, event *ticket.Event) error
+}
+
+func (m *mockEventRepo) List(ctx context.Context) ([]*ticket.Event, error) {
+	if m.listFunc != nil {
+		return m.listFunc(ctx)
+	}
+
+	return nil, nil
 }
 
 func (m *mockEventRepo) Get(ctx context.Context, id int) (*ticket.Event, error) {
@@ -129,6 +139,170 @@ func testLogger() *slog.Logger {
 }
 
 // --- Tests ---
+
+func TestListEvents_Success(t *testing.T) {
+	date := time.Date(2026, 6, 15, 20, 0, 0, 0, time.UTC)
+	e1, _ := ticket.NewEvent(1, "Rock Concert", "Stadium", date, 500, 150.0)
+	e2, _ := ticket.NewEvent(2, "Jazz Night", "Club", date, 100, 80.0)
+
+	eventRepo := &mockEventRepo{
+		listFunc: func(ctx context.Context) ([]*ticket.Event, error) {
+			return []*ticket.Event{e1, e2}, nil
+		},
+	}
+
+	svc := ticket.NewTicketService(eventRepo, nil, nil, nil)
+	handler := NewTicketHandler(svc, eventRepo, testLogger())
+
+	req := httptest.NewRequest(http.MethodGet, "/events", nil)
+	rr := httptest.NewRecorder()
+
+	handler.ListEvents(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d — body: %s", rr.Code, rr.Body.String())
+	}
+
+	var resp []eventResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if len(resp) != 2 {
+		t.Errorf("expected 2 events, got %d", len(resp))
+	}
+
+	if resp[0].Name != "Rock Concert" {
+		t.Errorf("expected first event 'Rock Concert', got %q", resp[0].Name)
+	}
+}
+
+func TestListEvents_Empty(t *testing.T) {
+	eventRepo := &mockEventRepo{
+		listFunc: func(ctx context.Context) ([]*ticket.Event, error) {
+			return nil, nil
+		},
+	}
+
+	svc := ticket.NewTicketService(eventRepo, nil, nil, nil)
+	handler := NewTicketHandler(svc, eventRepo, testLogger())
+
+	req := httptest.NewRequest(http.MethodGet, "/events", nil)
+	rr := httptest.NewRecorder()
+
+	handler.ListEvents(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", rr.Code)
+	}
+
+	var resp []eventResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if len(resp) != 0 {
+		t.Errorf("expected empty list, got %d events", len(resp))
+	}
+}
+
+func TestListEvents_RepoError(t *testing.T) {
+	eventRepo := &mockEventRepo{
+		listFunc: func(ctx context.Context) ([]*ticket.Event, error) {
+			return nil, errors.New("db error")
+		},
+	}
+
+	svc := ticket.NewTicketService(eventRepo, nil, nil, nil)
+	handler := NewTicketHandler(svc, eventRepo, testLogger())
+
+	req := httptest.NewRequest(http.MethodGet, "/events", nil)
+	rr := httptest.NewRecorder()
+
+	handler.ListEvents(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected status 500, got %d", rr.Code)
+	}
+}
+
+func TestGetEvent_Success(t *testing.T) {
+	date := time.Date(2026, 6, 15, 20, 0, 0, 0, time.UTC)
+	event, _ := ticket.NewEvent(1, "Rock Concert", "Stadium", date, 500, 150.0)
+
+	eventRepo := &mockEventRepo{
+		getFunc: func(ctx context.Context, id int) (*ticket.Event, error) {
+			return event, nil
+		},
+	}
+
+	svc := ticket.NewTicketService(eventRepo, nil, nil, nil)
+	handler := NewTicketHandler(svc, eventRepo, testLogger())
+
+	req := httptest.NewRequest(http.MethodGet, "/events/1", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "1")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	rr := httptest.NewRecorder()
+
+	handler.GetEvent(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d — body: %s", rr.Code, rr.Body.String())
+	}
+
+	var resp eventResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if resp.Name != "Rock Concert" {
+		t.Errorf("expected name 'Rock Concert', got %q", resp.Name)
+	}
+
+	if resp.AvailableTickets != 500 {
+		t.Errorf("expected 500 available tickets, got %d", resp.AvailableTickets)
+	}
+}
+
+func TestGetEvent_NotFound(t *testing.T) {
+	eventRepo := &mockEventRepo{
+		getFunc: func(ctx context.Context, id int) (*ticket.Event, error) {
+			return nil, nil
+		},
+	}
+
+	svc := ticket.NewTicketService(eventRepo, nil, nil, nil)
+	handler := NewTicketHandler(svc, eventRepo, testLogger())
+
+	req := httptest.NewRequest(http.MethodGet, "/events/999", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "999")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	rr := httptest.NewRecorder()
+
+	handler.GetEvent(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("expected status 404, got %d", rr.Code)
+	}
+}
+
+func TestGetEvent_InvalidID(t *testing.T) {
+	handler := NewTicketHandler(nil, nil, testLogger())
+
+	req := httptest.NewRequest(http.MethodGet, "/events/abc", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "abc")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	rr := httptest.NewRecorder()
+
+	handler.GetEvent(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", rr.Code)
+	}
+}
 
 func TestCreateEvent_Success(t *testing.T) {
 	eventRepo := &mockEventRepo{

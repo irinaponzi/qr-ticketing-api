@@ -10,6 +10,68 @@ import (
 	"github.com/iponzi/entradasQR/internal/ticket"
 )
 
+func TestMySQLEventRepository_List_Success(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("failed to create sqlmock: %v", err)
+	}
+	defer db.Close()
+
+	now := time.Now().Truncate(time.Second)
+	rows := sqlmock.NewRows([]string{"id", "name", "location", "date", "capacity", "ticket_price", "sold_count", "created_at", "updated_at"}).
+		AddRow(1, "Concert A", "Stadium", now, 500, 150.0, 0, now, now).
+		AddRow(2, "Concert B", "Club", now, 100, 80.0, 10, now, now)
+
+	mock.ExpectQuery("SELECT id, name, location, date, capacity, ticket_price, sold_count, created_at, updated_at FROM events ORDER BY date ASC").
+		WillReturnRows(rows)
+
+	repo := NewMySQLEventRepository(db)
+	events, err := repo.List(context.Background())
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(events) != 2 {
+		t.Errorf("expected 2 events, got %d", len(events))
+	}
+
+	if events[0].Name() != "Concert A" {
+		t.Errorf("expected 'Concert A', got %q", events[0].Name())
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("unmet expectations: %v", err)
+	}
+}
+
+func TestMySQLEventRepository_List_Empty(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("failed to create sqlmock: %v", err)
+	}
+	defer db.Close()
+
+	rows := sqlmock.NewRows([]string{"id", "name", "location", "date", "capacity", "ticket_price", "sold_count", "created_at", "updated_at"})
+	mock.ExpectQuery("SELECT id, name, location, date, capacity, ticket_price, sold_count, created_at, updated_at FROM events ORDER BY date ASC").
+		WillReturnRows(rows)
+
+	repo := NewMySQLEventRepository(db)
+	events, err := repo.List(context.Background())
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(events) != 0 {
+		t.Errorf("expected empty slice, got %d events", len(events))
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("unmet expectations: %v", err)
+	}
+}
+
 func TestMySQLEventRepository_Get_Success(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {

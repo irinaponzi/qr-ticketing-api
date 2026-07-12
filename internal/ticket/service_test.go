@@ -9,9 +9,17 @@ import (
 // --- Mocks ---
 
 type mockEventRepository struct {
+	listFunc   func(ctx context.Context) ([]*Event, error)
 	getFunc    func(ctx context.Context, id int) (*Event, error)
 	addFunc    func(ctx context.Context, event *Event) error
 	updateFunc func(ctx context.Context, event *Event) error
+}
+
+func (m *mockEventRepository) List(ctx context.Context) ([]*Event, error) {
+	if m.listFunc != nil {
+		return m.listFunc(ctx)
+	}
+	return nil, nil
 }
 
 func (m *mockEventRepository) Get(ctx context.Context, id int) (*Event, error) {

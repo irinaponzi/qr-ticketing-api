@@ -52,6 +52,27 @@ func NewTicketService(
 	}
 }
 
+// ListEvents returns all events ordered by date.
+func (s *TicketService) ListEvents(ctx context.Context) ([]*Event, error) {
+	events, err := s.eventRepo.List(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("listing events: %w", err)
+	}
+	return events, nil
+}
+
+// GetEvent returns a single event by ID, returning ErrNotFound if it doesn't exist.
+func (s *TicketService) GetEvent(ctx context.Context, id int) (*Event, error) {
+	event, err := s.eventRepo.Get(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("getting event: %w", err)
+	}
+	if event == nil {
+		return nil, fmt.Errorf("%w: event %d", ErrNotFound, id)
+	}
+	return event, nil
+}
+
 // Purchase orchestrates the ticket purchasing flow: validates event availability,
 // reserves tickets, generates unique codes, persists all entities, and publishes
 // creation events to the message broker.
