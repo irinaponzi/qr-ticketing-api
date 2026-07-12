@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -42,16 +43,22 @@ func NewTicketHandler(
 	}
 }
 
-// Routes returns a chi.Router with role-protected ticket routes.
+// Routes returns a chi.Router with ticket routes.
 //
-// Role mapping:
-//   - POST /events        → admin only
-//   - POST /purchases     → user only
-//   - POST /tickets/lookup → any authenticated caller
-//   - POST /tickets/cancel → admin only
+// Public (no auth):
+//   - GET  /events        → list all events
+//   - GET  /events/{id}   → get single event
+//
+// Role-protected:
+//   - POST /events              → admin only
+//   - POST /purchases           → user only
+//   - POST /tickets/lookup      → any authenticated caller
+//   - POST /tickets/cancel      → admin only
 func (h *TicketHandler) Routes(validator appmiddleware.TokenValidator) chi.Router {
 	r := chi.NewRouter()
 
+	r.Get("/events", h.ListEvents)
+	r.Get("/events/{id}", h.GetEvent)
 	r.With(appmiddleware.RequireRole(validator, appmiddleware.RoleAdmin)).Post("/events", h.CreateEvent)
 	r.With(appmiddleware.RequireRole(validator, appmiddleware.RoleUser)).Post("/purchases", h.CreatePurchase)
 	r.With(appmiddleware.RequireAuth(validator)).Post("/tickets/lookup", h.LookupTicket)
@@ -61,6 +68,16 @@ func (h *TicketHandler) Routes(validator appmiddleware.TokenValidator) chi.Route
 }
 
 // --- Request / Response DTOs ---
+
+type eventResponse struct {
+	ID               int     `json:"id"`
+	Name             string  `json:"name"`
+	Location         string  `json:"location"`
+	Date             string  `json:"date"`
+	Capacity         int     `json:"capacity"`
+	AvailableTickets int     `json:"available_tickets"`
+	TicketPrice      float64 `json:"ticket_price"`
+}
 
 type createEventRequest struct {
 	Name        string  `json:"name"`
@@ -115,6 +132,43 @@ type errorResponse struct {
 }
 
 // --- Handlers ---
+
+// ListEvents handles GET /events.
+// Returns all events ordered by date, no authentication required.
+func (h *TicketHandler) ListEvents(w http.ResponseWriter, r *http.Request) {
+	events, err := h.service.ListEvents(r.Context())
+	if err != nil {
+		h.logger.ErrorContext(r.Context(), "failed to list events", "error", err)
+		respondJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+
+	resp := make([]eventResponse, 0, len(events))
+	for _, e := range events {
+		resp = append(resp, toEventResponse(e))
+	}
+
+	respondJSON(w, http.StatusOK, resp)
+}
+
+// GetEvent handles GET /events/{id}.
+// Returns a single event by ID, no authentication required.
+func (h *TicketHandler) GetEvent(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil || id <= 0 {
+		respondJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid event id"})
+		return
+	}
+
+	event, err := h.service.GetEvent(r.Context(), id)
+	if err != nil {
+		h.handleServiceError(w, r, err)
+		return
+	}
+
+	respondJSON(w, http.StatusOK, toEventResponse(event))
+}
 
 // CreateEvent handles POST /events.
 // It parses the request body, validates the event data, persists the event,
@@ -261,6 +315,18 @@ func (h *TicketHandler) handleServiceError(w http.ResponseWriter, r *http.Reques
 
 	h.logger.ErrorContext(r.Context(), "unexpected error", "error", err)
 	respondJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+}
+
+func toEventResponse(e *ticket.Event) eventResponse {
+	return eventResponse{
+		ID:               e.ID(),
+		Name:             e.Name(),
+		Location:         e.Location(),
+		Date:             e.Date().Format(time.RFC3339),
+		Capacity:         e.Capacity(),
+		AvailableTickets: e.AvailableTickets(),
+		TicketPrice:      e.TicketPrice(),
+	}
 }
 
 func respondJSON(w http.ResponseWriter, status int, data interface{}) {
