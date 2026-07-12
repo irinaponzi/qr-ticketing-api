@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
 	"github.com/iponzi/entradasQR/internal/platform/config"
 	"github.com/iponzi/entradasQR/internal/platform/database"
 	"github.com/iponzi/entradasQR/internal/platform/metrics"
@@ -90,6 +91,14 @@ func main() {
 
 	// Router
 	r := chi.NewRouter()
+	if cfg.CORSAllowedOrigin != "" {
+		r.Use(cors.Handler(cors.Options{
+			AllowedOrigins: []string{cfg.CORSAllowedOrigin},
+			AllowedMethods: []string{"GET", "POST", "OPTIONS"},
+			AllowedHeaders: []string{"Authorization", "Content-Type"},
+			MaxAge:         300,
+		}))
+	}
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)

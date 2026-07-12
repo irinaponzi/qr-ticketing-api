@@ -353,8 +353,9 @@ func TestCognitoValidator_TamperedSignature(t *testing.T) {
 		TokenUse: "access",
 		Exp:      time.Now().Add(time.Hour).Unix(),
 	})
-	// corrupt last character of signature
-	token = token[:len(token)-1] + "X"
+	// corrupt a middle character of the signature (last char has ignored padding bits)
+	mid := len(token) - len(token)/4
+	token = token[:mid] + "X" + token[mid+1:]
 
 	_, err := v.Validate(context.Background(), token)
 	if err == nil {

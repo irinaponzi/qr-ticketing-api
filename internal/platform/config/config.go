@@ -13,6 +13,7 @@ type TicketAPIConfig struct {
 	RabbitMQURL       string `envconfig:"RABBITMQ_URL" default:"amqp://guest:guest@localhost:5672/"`
 	CognitoRegion     string `envconfig:"COGNITO_REGION" default:"us-east-1"`
 	CognitoUserPoolID string `envconfig:"COGNITO_USER_POOL_ID"`
+	CORSAllowedOrigin string `envconfig:"CORS_ALLOWED_ORIGIN"`
 }
 
 // ValidatorAPIConfig holds environment-based configuration for the validator API service.
