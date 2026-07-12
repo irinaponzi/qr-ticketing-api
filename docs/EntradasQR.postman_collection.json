@@ -47,7 +47,31 @@
 			"name": "Ticket API",
 			"item": [
 				{
-					"name": "1. Create Event",
+					"name": "1. List Events",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{ticket_api_url}}/events",
+							"host": ["{{ticket_api_url}}"],
+							"path": ["events"]
+						}
+					}
+				},
+				{
+					"name": "2. Get Event by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{ticket_api_url}}/events/{{event_id}}",
+							"host": ["{{ticket_api_url}}"],
+							"path": ["events", "{{event_id}}"]
+						}
+					}
+				},
+				{
+					"name": "3. Create Event",
 					"event": [
 						{
 							"listen": "test",
@@ -90,7 +114,7 @@
 					}
 				},
 				{
-					"name": "2. Purchase Tickets",
+					"name": "4. Purchase Tickets",
 					"event": [
 						{
 							"listen": "test",
@@ -134,7 +158,7 @@
 					}
 				},
 				{
-					"name": "3. Lookup Ticket by Code",
+					"name": "5. Lookup Ticket by Code",
 					"request": {
 						"method": "POST",
 						"header": [
@@ -159,7 +183,7 @@
 					}
 				},
 				{
-					"name": "4. Cancel Ticket",
+					"name": "6. Cancel Ticket",
 					"request": {
 						"method": "POST",
 						"header": [
