@@ -16,6 +16,9 @@ servers:
   - url: http://localhost:8081
     description: Local development
 
+security:
+  - BearerAuth: []
+
 paths:
   /validate:
     post:
@@ -42,7 +45,7 @@ paths:
             schema:
               $ref: '#/components/schemas/ValidateRequest'
             example:
-              ticket_code: "550e8400-e29b-41d4-a716-446655440000.a1b2c3d4e5f6"
+              token: "550e8400-e29b-41d4-a716-446655440000.a1b2c3d4e5f6"
       responses:
         '200':
           description: Validation result
@@ -87,6 +90,24 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Caller does not have the admin role
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Business rule violation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '429':
           description: Rate limit exceeded
           headers:
@@ -100,12 +121,6 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
               example:
                 error: "rate limit exceeded, try again later"
-        '409':
-          description: Business rule violation
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
@@ -117,9 +132,9 @@ components:
   schemas:
     ValidateRequest:
       type: object
-      required: [ticket_code]
+      required: [token]
       properties:
-        ticket_code:
+        token:
           type: string
           description: HMAC-signed token from the scanned QR (format code.signature)
 
@@ -138,3 +153,10 @@ components:
       properties:
         error:
           type: string
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: AWS Cognito JWT (access or ID token). Requires the **admin** group.

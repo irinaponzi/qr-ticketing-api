@@ -30,6 +30,16 @@
 			"key": "signed_ticket_code",
 			"value": "",
 			"description": "HMAC-signed token from QR code in email (format: uuid.signature). Set manually after checking MailHog."
+		},
+		{
+			"key": "admin_token",
+			"value": "",
+			"description": "Cognito JWT for a user in the 'admin' group. Paste the access_token or id_token from Cognito here."
+		},
+		{
+			"key": "user_token",
+			"value": "",
+			"description": "Cognito JWT for a user in the 'user' group. Paste the access_token or id_token from Cognito here."
 		}
 	],
 	"item": [
@@ -62,6 +72,10 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
 							}
 						],
 						"body": {
@@ -102,6 +116,10 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{user_token}}"
 							}
 						],
 						"body": {
@@ -123,6 +141,10 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
 							}
 						],
 						"body": {
@@ -144,11 +166,15 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
 							}
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"id\": {{ticket_id}}\n}"
+							"raw": "{\n    \"code\": \"{{ticket_code}}\"\n}"
 						},
 						"url": {
 							"raw": "{{ticket_api_url}}/tickets/cancel",
@@ -186,11 +212,15 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
 							}
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"ticket_code\": \"{{signed_ticket_code}}\"\n}"
+							"raw": "{\n    \"token\": \"{{signed_ticket_code}}\"\n}"
 						},
 						"url": {
 							"raw": "{{validator_api_url}}/validate",
@@ -224,11 +254,15 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
 							}
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"ticket_code\": \"{{signed_ticket_code}}\"\n}"
+							"raw": "{\n    \"token\": \"{{signed_ticket_code}}\"\n}"
 						},
 						"url": {
 							"raw": "{{validator_api_url}}/validate",
@@ -261,11 +295,15 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
 							}
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"ticket_code\": \"00000000-0000-0000-0000-000000000000\"\n}"
+							"raw": "{\n    \"token\": \"00000000-0000-0000-0000-000000000000.invalidsignature\"\n}"
 						},
 						"url": {
 							"raw": "{{validator_api_url}}/validate",

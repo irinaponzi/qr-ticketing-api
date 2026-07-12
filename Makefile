@@ -1,4 +1,4 @@
-.PHONY: build run-ticket run-validator run-qr-worker infra infra-down test test-cover tidy lint wiki
+.PHONY: build run-ticket run-validator run-qr-worker infra infra-down test test-cover tidy lint
 
 # Load .env if it exists (variables are prefixed per service).
 -include .env
@@ -23,6 +23,8 @@ run-ticket:
 	DB_PASSWORD=$(TICKET_DB_PASSWORD) \
 	DB_NAME=$(TICKET_DB_NAME) \
 	RABBITMQ_URL=$(RABBITMQ_URL) \
+	COGNITO_REGION=$(COGNITO_REGION) \
+	COGNITO_USER_POOL_ID=$(COGNITO_USER_POOL_ID) \
 	go run ./cmd/ticket-api
 
 run-validator:
@@ -32,6 +34,8 @@ run-validator:
 	RABBITMQ_URL=$(RABBITMQ_URL) \
 	TICKET_SERVICE_URL=$(VALIDATOR_TICKET_SERVICE_URL) \
 	HMAC_SECRET=$(HMAC_SECRET) \
+	COGNITO_REGION=$(COGNITO_REGION) \
+	COGNITO_USER_POOL_ID=$(COGNITO_USER_POOL_ID) \
 	go run ./cmd/validator-api
 
 run-qr-worker:
@@ -64,6 +68,3 @@ lint:
 	@which golangci-lint > /dev/null 2>&1 || { echo "Installing golangci-lint..."; go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; }
 	golangci-lint run ./...
 
-wiki:
-	docker compose --profile docs up -d wiki
-	@echo "Wiki available at http://localhost:8888"

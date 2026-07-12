@@ -45,19 +45,6 @@ services:
     depends_on:
       - redis
 
-  # --- Documentation ---
-
-  wiki:
-    image: squidfunk/mkdocs-material:latest
-    container_name: wiki
-    ports:
-      - "8888:8000"
-    volumes:
-      - ./mkdocs.yml:/docs/mkdocs.yml:ro
-      - ./docs:/docs/docs:ro
-    profiles:
-      - docs
-
   # --- Observability Stack ---
 
   prometheus:

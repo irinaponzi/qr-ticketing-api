@@ -11,6 +11,9 @@ servers:
   - url: http://localhost:8080
     description: Local development
 
+security:
+  - BearerAuth: []
+
 paths:
   /events:
     post:
@@ -39,6 +42,18 @@ paths:
                 $ref: '#/components/schemas/EventResponse'
         '400':
           description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Caller does not have the admin role
           content:
             application/json:
               schema:
@@ -83,6 +98,18 @@ paths:
                 $ref: '#/components/schemas/PurchaseResponse'
         '400':
           description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Caller does not have the user role
           content:
             application/json:
               schema:
@@ -137,6 +164,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Ticket not found
           content:
@@ -154,8 +187,9 @@ paths:
     post:
       summary: Cancel a ticket
       description: |
-        Cancels a ticket by ID (sent in the request body). Publishes a ticket.cancelled
+        Cancels a ticket by code (sent in the request body). Publishes a ticket.cancelled
         event to RabbitMQ so the validator service updates it in Redis.
+        The code is sent in the body (not in the URL) to avoid exposing sensitive data in logs.
       operationId: cancelTicket
       tags:
         - Tickets
@@ -166,12 +200,28 @@ paths:
             schema:
               $ref: '#/components/schemas/CancelTicketRequest'
             example:
-              id: 1
+              code: "550e8400-e29b-41d4-a716-446655440000"
       responses:
-        '204':
+        '200':
           description: Ticket cancelled successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CancelTicketResponse'
         '400':
-          description: Invalid or missing ticket ID
+          description: Missing or empty code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Caller does not have the admin role
           content:
             application/json:
               schema:
@@ -282,12 +332,19 @@ components:
 
     CancelTicketRequest:
       type: object
-      required: [id]
+      required: [code]
       properties:
-        id:
-          type: integer
-          minimum: 1
-          description: Ticket ID to cancel
+        code:
+          type: string
+          format: uuid
+          description: Ticket UUID code to cancel
+
+    CancelTicketResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "ticket cancelled"
 
     TicketResponse:
       type: object
@@ -307,3 +364,13 @@ components:
       properties:
         error:
           type: string
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        AWS Cognito JWT (access or ID token).
+        - **admin** group: can create events, cancel tickets, look up tickets
+        - **user** group: can purchase tickets, look up tickets
