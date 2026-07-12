@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	appmiddleware "github.com/iponzi/entradasQR/internal/platform/middleware"
 	"github.com/iponzi/entradasQR/internal/platform/metrics"
 	"github.com/iponzi/entradasQR/internal/validator"
 )
@@ -34,14 +35,14 @@ func NewValidatorHandler(service *validator.ValidatorService, tokenSigner valida
 	}
 }
 
-// Routes returns a chi.Router with the validation endpoint registered.
+// Routes returns a chi.Router with the validation endpoint protected for admins.
 //
-// Returns:
-//   - chi.Router: The configured router with POST /validate.
-func (h *ValidatorHandler) Routes() chi.Router {
+// Role mapping:
+//   - POST /validate → admin only
+func (h *ValidatorHandler) Routes(validator appmiddleware.TokenValidator) chi.Router {
 	r := chi.NewRouter()
 
-	r.Post("/validate", h.ValidateTicket)
+	r.With(appmiddleware.RequireRole(validator, appmiddleware.RoleAdmin)).Post("/validate", h.ValidateTicket)
 
 	return r
 }
@@ -49,7 +50,7 @@ func (h *ValidatorHandler) Routes() chi.Router {
 // --- Request / Response DTOs ---
 
 type validateRequest struct {
-	TicketCode string `json:"ticket_code"`
+	Token string `json:"token"`
 }
 
 type validateResponse struct {
@@ -74,12 +75,12 @@ func (h *ValidatorHandler) ValidateTicket(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if req.TicketCode == "" {
-		respondJSON(w, http.StatusBadRequest, errorResponse{Error: "ticket_code is required"})
+	if req.Token == "" {
+		respondJSON(w, http.StatusBadRequest, errorResponse{Error: "token is required"})
 		return
 	}
 
-	code, valid := h.tokenSigner.Verify(req.TicketCode)
+	code, valid := h.tokenSigner.Verify(req.Token)
 	if !valid {
 		metrics.TicketsValidatedTotal.WithLabelValues("invalid").Inc()
 		respondJSON(w, http.StatusOK, validateResponse{Valid: false, Message: "invalid or tampered QR token"})
@@ -106,7 +107,7 @@ func (h *ValidatorHandler) ValidateTicket(w http.ResponseWriter, r *http.Request
 		metrics.TicketsValidatedTotal.WithLabelValues("invalid").Inc()
 	}
 
-	h.logger.InfoContext(r.Context(), "ticket validation", "code", req.TicketCode, "valid", result.Valid, "message", result.Message)
+	h.logger.InfoContext(r.Context(), "ticket validation", "token", req.Token, "valid", result.Valid, "message", result.Message)
 
 	respondJSON(w, http.StatusOK, validateResponse{
 		Valid:   result.Valid,

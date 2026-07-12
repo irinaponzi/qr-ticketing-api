@@ -103,7 +103,7 @@ func TestValidateTicket_Success(t *testing.T) {
 	signer := &mockTokenSigner{}
 	h := NewValidatorHandler(svc, signer, testLogger())
 
-	body := `{"ticket_code":"abc-123.test-sig"}`
+	body := `{"token":"abc-123.test-sig"}`
 	req := httptest.NewRequest(http.MethodPost, "/validate", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
@@ -138,7 +138,7 @@ func TestValidateTicket_AlreadyUsed(t *testing.T) {
 	signer := &mockTokenSigner{}
 	h := NewValidatorHandler(svc, signer, testLogger())
 
-	body := `{"ticket_code":"abc-123.test-sig"}`
+	body := `{"token":"abc-123.test-sig"}`
 	req := httptest.NewRequest(http.MethodPost, "/validate", bytes.NewBufferString(body))
 	rr := httptest.NewRecorder()
 
@@ -172,7 +172,7 @@ func TestValidateTicket_InvalidBody(t *testing.T) {
 func TestValidateTicket_EmptyCode(t *testing.T) {
 	h := NewValidatorHandler(nil, &mockTokenSigner{}, testLogger())
 
-	body := `{"ticket_code":""}`
+	body := `{"token":""}`
 	req := httptest.NewRequest(http.MethodPost, "/validate", bytes.NewBufferString(body))
 	rr := httptest.NewRecorder()
 
@@ -194,7 +194,7 @@ func TestValidateTicket_RepoError(t *testing.T) {
 	signer := &mockTokenSigner{}
 	h := NewValidatorHandler(svc, signer, testLogger())
 
-	body := `{"ticket_code":"abc-123.test-sig"}`
+	body := `{"token":"abc-123.test-sig"}`
 	req := httptest.NewRequest(http.MethodPost, "/validate", bytes.NewBufferString(body))
 	rr := httptest.NewRecorder()
 
@@ -218,7 +218,7 @@ func TestValidateTicket_FallbackNotFound(t *testing.T) {
 	signer := &mockTokenSigner{}
 	h := NewValidatorHandler(svc, signer, testLogger())
 
-	body := `{"ticket_code":"nonexistent.test-sig"}`
+	body := `{"token":"nonexistent.test-sig"}`
 	req := httptest.NewRequest(http.MethodPost, "/validate", bytes.NewBufferString(body))
 	rr := httptest.NewRecorder()
 

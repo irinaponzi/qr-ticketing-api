@@ -364,7 +364,7 @@ func TestCancelTicket_Success(t *testing.T) {
 	tk, _ := ticket.NewTicket(1, 10, 100)
 
 	ticketRepo := &mockTicketRepo{
-		getFunc: func(ctx context.Context, id int) (*ticket.Ticket, error) {
+		getByCodeFunc: func(ctx context.Context, code string) (*ticket.Ticket, error) {
 			return tk, nil
 		},
 	}
@@ -373,21 +373,30 @@ func TestCancelTicket_Success(t *testing.T) {
 	svc := ticket.NewTicketService(nil, ticketRepo, nil, publisher)
 	handler := NewTicketHandler(svc, nil, testLogger())
 
-	body := `{"id":1}`
+	body := `{"code":"` + tk.Code() + `"}`
 	req := httptest.NewRequest(http.MethodPost, "/tickets/cancel", bytes.NewBufferString(body))
 	rr := httptest.NewRecorder()
 
 	handler.CancelTicket(rr, req)
 
-	if rr.Code != http.StatusNoContent {
-		t.Errorf("expected status 204, got %d — body: %s", rr.Code, rr.Body.String())
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d — body: %s", rr.Code, rr.Body.String())
+	}
+
+	var resp cancelTicketResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if resp.Message != "ticket cancelled" {
+		t.Errorf("expected message 'ticket cancelled', got %q", resp.Message)
 	}
 }
 
-func TestCancelTicket_InvalidID(t *testing.T) {
+func TestCancelTicket_EmptyCode(t *testing.T) {
 	handler := NewTicketHandler(nil, nil, testLogger())
 
-	body := `{"id":0}`
+	body := `{"code":""}`
 	req := httptest.NewRequest(http.MethodPost, "/tickets/cancel", bytes.NewBufferString(body))
 	rr := httptest.NewRecorder()
 
@@ -400,7 +409,7 @@ func TestCancelTicket_InvalidID(t *testing.T) {
 
 func TestCancelTicket_NotFound(t *testing.T) {
 	ticketRepo := &mockTicketRepo{
-		getFunc: func(ctx context.Context, id int) (*ticket.Ticket, error) {
+		getByCodeFunc: func(ctx context.Context, code string) (*ticket.Ticket, error) {
 			return nil, nil
 		},
 	}
@@ -408,7 +417,7 @@ func TestCancelTicket_NotFound(t *testing.T) {
 	svc := ticket.NewTicketService(nil, ticketRepo, nil, nil)
 	handler := NewTicketHandler(svc, nil, testLogger())
 
-	body := `{"id":999}`
+	body := `{"code":"nonexistent-code"}`
 	req := httptest.NewRequest(http.MethodPost, "/tickets/cancel", bytes.NewBufferString(body))
 	rr := httptest.NewRecorder()
 
@@ -416,5 +425,29 @@ func TestCancelTicket_NotFound(t *testing.T) {
 
 	if rr.Code != http.StatusNotFound {
 		t.Errorf("expected status 404, got %d", rr.Code)
+	}
+}
+
+func TestCancelTicket_AlreadyUsed(t *testing.T) {
+	tk, _ := ticket.NewTicket(1, 10, 100)
+	_ = tk.MarkAsUsed()
+
+	ticketRepo := &mockTicketRepo{
+		getByCodeFunc: func(ctx context.Context, code string) (*ticket.Ticket, error) {
+			return tk, nil
+		},
+	}
+
+	svc := ticket.NewTicketService(nil, ticketRepo, nil, nil)
+	handler := NewTicketHandler(svc, nil, testLogger())
+
+	body := `{"code":"` + tk.Code() + `"}`
+	req := httptest.NewRequest(http.MethodPost, "/tickets/cancel", bytes.NewBufferString(body))
+	rr := httptest.NewRecorder()
+
+	handler.CancelTicket(rr, req)
+
+	if rr.Code != http.StatusConflict {
+		t.Errorf("expected status 409, got %d — body: %s", rr.Code, rr.Body.String())
 	}
 }

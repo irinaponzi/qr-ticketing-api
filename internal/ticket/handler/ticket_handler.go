@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	appmiddleware "github.com/iponzi/entradasQR/internal/platform/middleware"
 	"github.com/iponzi/entradasQR/internal/platform/metrics"
 	"github.com/iponzi/entradasQR/internal/ticket"
 )
@@ -41,18 +42,20 @@ func NewTicketHandler(
 	}
 }
 
-// Routes returns a chi.Router with all ticket-related routes registered.
+// Routes returns a chi.Router with role-protected ticket routes.
 //
-// Returns:
-//   - chi.Router: The configured router with POST /events, POST /purchases,
-//     POST /tickets/lookup, and POST /tickets/cancel.
-func (h *TicketHandler) Routes() chi.Router {
+// Role mapping:
+//   - POST /events        → admin only
+//   - POST /purchases     → user only
+//   - POST /tickets/lookup → any authenticated caller
+//   - POST /tickets/cancel → admin only
+func (h *TicketHandler) Routes(validator appmiddleware.TokenValidator) chi.Router {
 	r := chi.NewRouter()
 
-	r.Post("/events", h.CreateEvent)
-	r.Post("/purchases", h.CreatePurchase)
-	r.Post("/tickets/lookup", h.LookupTicket)
-	r.Post("/tickets/cancel", h.CancelTicket)
+	r.With(appmiddleware.RequireRole(validator, appmiddleware.RoleAdmin)).Post("/events", h.CreateEvent)
+	r.With(appmiddleware.RequireRole(validator, appmiddleware.RoleUser)).Post("/purchases", h.CreatePurchase)
+	r.With(appmiddleware.RequireAuth(validator)).Post("/tickets/lookup", h.LookupTicket)
+	r.With(appmiddleware.RequireRole(validator, appmiddleware.RoleAdmin)).Post("/tickets/cancel", h.CancelTicket)
 
 	return r
 }
@@ -100,7 +103,11 @@ type lookupTicketRequest struct {
 }
 
 type cancelTicketRequest struct {
-	ID int `json:"id"`
+	Code string `json:"code"`
+}
+
+type cancelTicketResponse struct {
+	Message string `json:"message"`
 }
 
 type errorResponse struct {
@@ -125,7 +132,7 @@ func (h *TicketHandler) CreateEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	event, err := ticket.NewEvent(1, req.Name, req.Location, parsedDate, req.Capacity, req.TicketPrice)
+	event, err := ticket.NewEvent(0, req.Name, req.Location, parsedDate, req.Capacity, req.TicketPrice)
 	if err != nil {
 		respondJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
 		return
@@ -218,7 +225,7 @@ func (h *TicketHandler) LookupTicket(w http.ResponseWriter, r *http.Request) {
 }
 
 // CancelTicket handles POST /tickets/cancel.
-// It cancels the ticket by ID from the request body and returns 204 No Content on success.
+// It cancels the ticket by code from the request body and returns 200 with a confirmation message.
 func (h *TicketHandler) CancelTicket(w http.ResponseWriter, r *http.Request) {
 	var req cancelTicketRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -226,17 +233,17 @@ func (h *TicketHandler) CancelTicket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.ID <= 0 {
-		respondJSON(w, http.StatusBadRequest, errorResponse{Error: "valid ticket id is required"})
+	if req.Code == "" {
+		respondJSON(w, http.StatusBadRequest, errorResponse{Error: "code is required"})
 		return
 	}
 
-	if err := h.service.CancelTicket(r.Context(), req.ID); err != nil {
+	if err := h.service.CancelTicket(r.Context(), req.Code); err != nil {
 		h.handleServiceError(w, r, err)
 		return
 	}
 
-	w.WriteHeader(http.StatusNoContent)
+	respondJSON(w, http.StatusOK, cancelTicketResponse{Message: "ticket cancelled"})
 }
 
 // --- Helpers ---

@@ -4,23 +4,27 @@ import "github.com/kelseyhightower/envconfig"
 
 // TicketAPIConfig holds environment-based configuration for the ticket API service.
 type TicketAPIConfig struct {
-	Port        int    `envconfig:"PORT" default:"8080"`
-	DBHost      string `envconfig:"DB_HOST" default:"localhost"`
-	DBPort      int    `envconfig:"DB_PORT" default:"3306"`
-	DBUser      string `envconfig:"DB_USER" default:"root"`
-	DBPassword  string `envconfig:"DB_PASSWORD" default:"root"`
-	DBName      string `envconfig:"DB_NAME" default:"tickets_db"`
-	RabbitMQURL string `envconfig:"RABBITMQ_URL" default:"amqp://guest:guest@localhost:5672/"`
+	Port              int    `envconfig:"PORT" default:"8080"`
+	DBHost            string `envconfig:"DB_HOST" default:"localhost"`
+	DBPort            int    `envconfig:"DB_PORT" default:"3306"`
+	DBUser            string `envconfig:"DB_USER" default:"root"`
+	DBPassword        string `envconfig:"DB_PASSWORD" default:"root"`
+	DBName            string `envconfig:"DB_NAME" default:"tickets_db"`
+	RabbitMQURL       string `envconfig:"RABBITMQ_URL" default:"amqp://guest:guest@localhost:5672/"`
+	CognitoRegion     string `envconfig:"COGNITO_REGION" default:"us-east-1"`
+	CognitoUserPoolID string `envconfig:"COGNITO_USER_POOL_ID"`
 }
 
 // ValidatorAPIConfig holds environment-based configuration for the validator API service.
 type ValidatorAPIConfig struct {
-	Port             int    `envconfig:"PORT" default:"8081"`
-	RedisHost        string `envconfig:"REDIS_HOST" default:"localhost"`
-	RedisPort        int    `envconfig:"REDIS_PORT" default:"6379"`
-	RabbitMQURL      string `envconfig:"RABBITMQ_URL" default:"amqp://guest:guest@localhost:5672/"`
-	TicketServiceURL string `envconfig:"TICKET_SERVICE_URL" default:"http://localhost:8080"`
-	HMACSecret       string `envconfig:"HMAC_SECRET" default:"change-me-in-production"`
+	Port              int    `envconfig:"PORT" default:"8081"`
+	RedisHost         string `envconfig:"REDIS_HOST" default:"localhost"`
+	RedisPort         int    `envconfig:"REDIS_PORT" default:"6379"`
+	RabbitMQURL       string `envconfig:"RABBITMQ_URL" default:"amqp://guest:guest@localhost:5672/"`
+	TicketServiceURL  string `envconfig:"TICKET_SERVICE_URL" default:"http://localhost:8080"`
+	HMACSecret        string `envconfig:"HMAC_SECRET" default:"change-me-in-production"`
+	CognitoRegion     string `envconfig:"COGNITO_REGION" default:"us-east-1"`
+	CognitoUserPoolID string `envconfig:"COGNITO_USER_POOL_ID"`
 }
 
 // QRWorkerConfig holds environment-based configuration for the QR worker service.

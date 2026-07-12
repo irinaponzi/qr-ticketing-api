@@ -89,6 +89,9 @@ func main() {
 	tokenSigner := ticketadapter.NewHMACTokenSigner(cfg.HMACSecret)
 	handler := validatorhandler.NewValidatorHandler(svc, tokenSigner, logger)
 
+	// Auth
+	authValidator := appmiddleware.NewCognitoValidator(cfg.CognitoRegion, cfg.CognitoUserPoolID)
+
 	r := chi.NewRouter()
 	rateLimiter := appmiddleware.NewIPRateLimiter(10, 20, logger)
 
@@ -98,7 +101,7 @@ func main() {
 	r.Use(metrics.HTTPMetricsMiddleware)
 	r.Use(rateLimiter.Middleware)
 	r.Handle("/metrics", promhttp.Handler())
-	r.Mount("/", handler.Routes())
+	r.Mount("/", handler.Routes(authValidator))
 
 	addr := fmt.Sprintf(":%d", cfg.Port)
 	logger.Info("validator-api starting", "addr", addr)

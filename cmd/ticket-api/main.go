@@ -15,6 +15,7 @@ import (
 	"github.com/iponzi/entradasQR/internal/platform/config"
 	"github.com/iponzi/entradasQR/internal/platform/database"
 	"github.com/iponzi/entradasQR/internal/platform/metrics"
+	appmiddleware "github.com/iponzi/entradasQR/internal/platform/middleware"
 	"github.com/iponzi/entradasQR/internal/platform/rabbitmq"
 	"github.com/iponzi/entradasQR/internal/ticket"
 	ticketadapter "github.com/iponzi/entradasQR/internal/ticket/adapter"
@@ -84,6 +85,9 @@ func main() {
 	// Handler
 	handler := tickethandler.NewTicketHandler(svc, eventRepo, logger)
 
+	// Auth
+	authValidator := appmiddleware.NewCognitoValidator(cfg.CognitoRegion, cfg.CognitoUserPoolID)
+
 	// Router
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
@@ -91,7 +95,7 @@ func main() {
 	r.Use(middleware.RequestID)
 	r.Use(metrics.HTTPMetricsMiddleware)
 	r.Handle("/metrics", promhttp.Handler())
-	r.Mount("/", handler.Routes())
+	r.Mount("/", handler.Routes(authValidator))
 
 	addr := fmt.Sprintf(":%d", cfg.Port)
 	logger.Info("ticket-api starting", "addr", addr)
