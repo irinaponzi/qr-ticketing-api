@@ -16,6 +16,28 @@ security:
 
 paths:
   /events:
+    get:
+      summary: List all events
+      description: Returns all events ordered by date. No authentication required.
+      operationId: listEvents
+      security: []
+      tags:
+        - Events
+      responses:
+        '200':
+          description: List of events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EventResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     post:
       summary: Create a new event
       operationId: createEvent
@@ -54,6 +76,47 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '403':
           description: Caller does not have the admin role
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /events/{id}:
+    get:
+      summary: Get event by ID
+      description: Returns a single event by its ID. No authentication required.
+      operationId: getEvent
+      security: []
+      tags:
+        - Events
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Event ID
+      responses:
+        '200':
+          description: Event found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventResponse'
+        '400':
+          description: Invalid event ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Event not found
           content:
             application/json:
               schema:
@@ -286,6 +349,9 @@ components:
           format: date-time
         capacity:
           type: integer
+        available_tickets:
+          type: integer
+          description: Remaining tickets available for purchase
         ticket_price:
           type: number
           format: double

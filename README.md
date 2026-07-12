@@ -121,6 +121,14 @@ EOF
 Copy the tokens and use them below. Admin endpoints need a user in the `admin` group; purchase endpoints need the `user` group.
 
 ```bash
+# List all events (no auth required)
+curl http://localhost:8080/events
+
+# Get a single event (no auth required)
+curl http://localhost:8080/events/1
+```
+
+```bash
 ADMIN_TOKEN="<your-cognito-access-or-id-token>"
 USER_TOKEN="<your-cognito-access-or-id-token>"
 
